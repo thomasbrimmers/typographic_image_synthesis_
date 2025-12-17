@@ -1,0 +1,10 @@
+{
+    "files.autoSave": "onFocusChange",
+    "python.linting.pylintArgs": [
+        "--generated-members",
+        "from_json,query"
+    ],
+    "pylint.args": [
+        "--generated-members", "cv2.*"
+    ]
+}
