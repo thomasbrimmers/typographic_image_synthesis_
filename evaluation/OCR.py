@@ -7,7 +7,7 @@ import pytesseract
 import xml.etree.ElementTree as ET
 import re
 
-def svg_to_png(svg_path, png_path, dpi=600):
+def svg_to_png(svg_path, png_path, dpi=4000):
 
     cairosvg.svg2png(
         url=svg_path,
@@ -19,7 +19,7 @@ def perform_ocr(image_path, lang="eng"):
 
     image = Image.open(image_path)
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    text = pytesseract.image_to_string(image, lang=lang)
+    text = pytesseract.image_to_string(image, lang=lang, config='--psm 12')
     return text
 
 def character_error_rate(reference, hypothesis):
@@ -29,7 +29,7 @@ def character_error_rate(reference, hypothesis):
     if len(reference) == 0:
         return 0.0
 
-    return  len(reference) / len(hypothesis)
+    return  len(hypothesis) / len(reference)
 
 def evaluate_svg_ocr(svg_path, reference_text, tmp_png="temp.png"):
     svg_to_png(svg_path, tmp_png)
