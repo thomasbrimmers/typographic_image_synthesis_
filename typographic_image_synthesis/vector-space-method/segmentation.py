@@ -1,7 +1,7 @@
 """Module providing a function printing python version."""
 import cv2
 import numpy as np
-from sklearn.cluster import KMeans
+#from sklearn.cluster import KMeans
 import skimage.segmentation as seg
 from scipy import ndimage as ndi
 from skimage import color, graph
@@ -227,14 +227,14 @@ def adaptivecanny(image):
     # Strong edges: above HIGH_THRESH
     strong_edges = (grad > HIGH_THRESH).astype(np.uint8) * 255
     cv2.imshow('Strong Edges Before Thinning', strong_edges)
-    strong_edges = cv2.ximgproc.thinning(strong_edges)
-    cv2.imshow('Strong Edges After Thinning', strong_edges)
+    # strong_edges = cv2.ximgproc.thinning(strong_edges)
+    # cv2.imshow('Strong Edges After Thinning', strong_edges)
     
     # Weak edges: above adaptive threshold but below HIGH_THRESH
     weak_edges = ((grad > adaptive_threshold)).astype(np.uint8) * 255
     cv2.imshow('Weak Edges Before Thinning', weak_edges)
-    weak_edges = cv2.ximgproc.thinning(weak_edges)
-    cv2.imshow('Weak Edges After Thinning', weak_edges)
+    # weak_edges = cv2.ximgproc.thinning(weak_edges)
+    # cv2.imshow('Weak Edges After Thinning', weak_edges)
 
     # Combine using hysteresis: keep weak edges connected to strong edges
     edges = np.zeros_like(strong_edges, dtype=np.uint8)
@@ -248,8 +248,9 @@ def adaptivecanny(image):
         if np.any(strong_edges & mask):
             edges[mask] = 255
 
-    # Optional: Morphological closing to fill small gaps
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    # Optional: Thinning
+    cv2.imshow('Edges Before Thinning', edges)
+    edges = cv2.ximgproc.thinning(edges)
     return edges
 
 
@@ -287,19 +288,19 @@ def kmeans_segmentation(image, k=4):
     clustered = labels.reshape((h, w))
     return clustered.astype(np.uint8)
 
-def kmeans_segmentation_scikit(image, k=4):
-    """Segment image using K-means clustering (scikit-learn)."""
-    h, w = image.shape
-    image = cv2.GaussianBlur(image, (5, 5), 2.5)
-    X, Y = np.meshgrid(np.arange(w), np.arange(h))
-    features = np.stack([X.ravel(), Y.ravel(), image.ravel()], axis=1).astype(np.float32)
-    features[:, :2] /= max(h, w)  # Normalize spatial coordinates
-    features[:, 2] /= 255.0       # Normalize intensity
+# def kmeans_segmentation_scikit(image, k=4):
+#     """Segment image using K-means clustering (scikit-learn)."""
+#     h, w = image.shape
+#     image = cv2.GaussianBlur(image, (5, 5), 2.5)
+#     X, Y = np.meshgrid(np.arange(w), np.arange(h))
+#     features = np.stack([X.ravel(), Y.ravel(), image.ravel()], axis=1).astype(np.float32)
+#     features[:, :2] /= max(h, w)  # Normalize spatial coordinates
+#     features[:, 2] /= 255.0       # Normalize intensity
 
-    kmeans = KMeans(n_clusters=k, n_init=10, random_state=42)
-    labels = kmeans.fit_predict(features)
-    clustered = labels.reshape((h, w))
-    return clustered.astype(np.uint8)
+#     kmeans = KMeans(n_clusters=k, n_init=10, random_state=42)
+#     labels = kmeans.fit_predict(features)
+#     clustered = labels.reshape((h, w))
+#     return clustered.astype(np.uint8)
 
 def watershed_segmentation(image):
     """
@@ -349,79 +350,83 @@ if __name__ == "__main__":
     #show original image
     cv2.imshow('Original Image', color_img)
 
-    # # RGB Sobel
-    # sobelx = cv2.Sobel(color_img, cv2.CV_64F, 1, 0, ksize=3)
-    # sobely = cv2.Sobel(color_img, cv2.CV_64F, 0, 1, ksize=3)
-    # sobel_mag = cv2.magnitude(sobelx, sobely)
-    # cv2.imshow('Sobel Magnitude', cv2.normalize(sobel_mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8))
-    # inverted_sobel = cv2.normalize(255 - sobel_mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    # cv2.imshow('Inverted Sobel Magnitude', inverted_sobel)
+    # RGB Sobel
+    sobelx = cv2.Sobel(color_img, cv2.CV_64F, 1, 0, ksize=3)
+    sobely = cv2.Sobel(color_img, cv2.CV_64F, 0, 1, ksize=3)
+    sobel_mag = cv2.magnitude(sobelx, sobely)
+    cv2.imshow('Sobel Magnitude', cv2.normalize(sobel_mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8))
+    inverted_sobel = cv2.normalize(255 - sobel_mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    cv2.imshow('Inverted Sobel Magnitude', inverted_sobel)
 
-    # adaptive_canny_img = adaptivecanny(img)
-    # #adaptive_canny_img = cv2.morphologyEx(adaptive_canny_img, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
-    # # Optionally, apply erosion to thin edges   
-    # #adaptive_canny_img = cv2.morphologyEx(adaptive_canny_img, cv2.MORPH_ERODE, np.ones((3, 3), np.uint8))
+    adaptive_canny_img = adaptivecanny(img)
+    #adaptive_canny_img = cv2.morphologyEx(adaptive_canny_img, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    # Optionally, apply erosion to thin edges
+    #adaptive_canny_img = cv2.morphologyEx(adaptive_canny_img, cv2.MORPH_ERODE, np.ones((3, 3), np.uint8))
 
-    # # # Display the result
-    # # cv2.imshow('Adaptive Canny Image', adaptive_canny_img)
-    # # canny_img = canny_with_fixed_threshold(img)
-    # # cv2.imshow('Fixed Threshold Canny Image', canny_img)
+    # Display the result
+    cv2.imshow('Adaptive Canny Image', adaptive_canny_img)
+    canny_img = canny_with_fixed_threshold(img)
+    cv2.imshow('Fixed Threshold Canny Image', canny_img)
 
-    # num_enclosed_adaptive, enclosed_adaptive = get_enclosed_regions(adaptive_canny_img)
-    # print(f"Enclosed regions (adaptive): {num_enclosed_adaptive}")
+    num_enclosed_adaptive, enclosed_adaptive = get_enclosed_regions(adaptive_canny_img)
+    print(f"Enclosed regions (adaptive): {num_enclosed_adaptive}")
 
-    # # Find enclosed regions for fixed-threshold Canny
-    # num_enclosed_fixed, enclosed_fixed = get_enclosed_regions(canny_img)
-    # print(f"Enclosed regions (fixed): {num_enclosed_fixed}")
+    # Find enclosed regions for fixed-threshold Canny
+    num_enclosed_fixed, enclosed_fixed = get_enclosed_regions(canny_img)
+    print(f"Enclosed regions (fixed): {num_enclosed_fixed}")
 
-    # # Visualize enclosed regions
-    # adaptive_enclosed_color = color.label2rgb(enclosed_adaptive, bg_label=0, kind='overlay')
-    # fixed_enclosed_color = cv2.applyColorMap((enclosed_fixed * round(256/num_enclosed_fixed) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
-    # cv2.imshow('Adaptive Enclosed Regions', adaptive_enclosed_color)
-    # cv2.imshow('Fixed Enclosed Regions', fixed_enclosed_color)
+    # Visualize enclosed regions
+    adaptive_enclosed_color = color.label2rgb(enclosed_adaptive, bg_label=0, kind='overlay')
+    fixed_enclosed_color = cv2.applyColorMap((enclosed_fixed * round(256/num_enclosed_fixed) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('Adaptive Enclosed Regions', adaptive_enclosed_color)
+    cv2.imshow('Fixed Enclosed Regions', fixed_enclosed_color)
     
-    # kmeans_img = kmeans_segmentation(img, k=K_INT)
-    # kmeans_img_color = cv2.applyColorMap((kmeans_img * round(256/K_INT) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
-    # cv2.imshow('K-means Segmentation', kmeans_img_color)
+    kmeans_img = kmeans_segmentation(img, k=K_INT)
+    kmeans_img_color = cv2.applyColorMap((kmeans_img * round(256/K_INT) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('K-means Segmentation', kmeans_img_color)
     
     # kmeans_img_scikit = kmeans_segmentation_scikit(img, k=K_INT)
     # kmeans_img_scikit_color = cv2.applyColorMap((kmeans_img_scikit * round(256/K_INT) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
     # cv2.imshow('K-means Segmentation (scikit)', kmeans_img_scikit_color)
 
-    # segments = seg.slic(color_img, n_segments=200, compactness=30, start_label=0)
-    # segments_color = cv2.applyColorMap((segments * round(256/200) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
-    # cv2.imshow('SLIC Segmentation', segments_color)
+    segments = seg.slic(color_img, n_segments=200, compactness=30, start_label=0)
+    segments_color = cv2.applyColorMap((segments * round(256/200) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('SLIC Segmentation', segments_color)
 
-    # felzenswalb = seg.felzenszwalb(color_img, scale=100, sigma=0.5, min_size=50)
-    # felzenswalb_color = cv2.applyColorMap((felzenswalb * round(256/200) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
-    # cv2.imshow('Felzenszwalb Segmentation', felzenswalb_color)
+    felzenswalb = seg.felzenszwalb(color_img, scale=100, sigma=0.5, min_size=50)
+    felzenswalb_color = cv2.applyColorMap((felzenswalb * round(256/200) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('Felzenszwalb Segmentation', felzenswalb_color)
     
-    # # Mean shift
-    # mean_shift = seg.quickshift(color_img, kernel_size=12, max_dist=30, ratio=0.7)
-    # mean_shift_color = color.label2rgb(mean_shift, color_img, kind='avg')
-    # cv2.imshow('Mean Shift Segmentation', mean_shift_color)
+    # Mean shift
+    mean_shift = seg.quickshift(color_img, kernel_size=12, max_dist=30, ratio=0.7)
+    mean_shift_color = color.label2rgb(mean_shift, color_img, kind='avg')
+    cv2.imshow('Mean Shift Segmentation', mean_shift_color)
 
-    # inverted_sobel_mean_shift = seg.quickshift(inverted_sobel, kernel_size=12, max_dist=30, ratio=0.7,)
-    # inverted_sobel_mean_shift_color = color.label2rgb(inverted_sobel_mean_shift, color_img, kind='avg')
-    # cv2.imshow('Mean Shift inv Segmentation', inverted_sobel_mean_shift_color)
+    inverted_sobel_mean_shift = seg.quickshift(inverted_sobel, kernel_size=12, max_dist=30, ratio=0.7,)
+    inverted_sobel_mean_shift_color = color.label2rgb(inverted_sobel_mean_shift, color_img, kind='avg')
+    cv2.imshow('Mean Shift inv Segmentation', inverted_sobel_mean_shift_color)
     
-    # watershed = watershed_segmentation(color_img)
-    # cv2.imshow('Watershed Segmentation', watershed)
+    watershed = watershed_segmentation(color_img)
+    watershed_coloured = cv2.applyColorMap((cv2.cvtColor(watershed, cv2.COLOR_BGR2GRAY) * round(256/200) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('Watershed Segmentation', watershed_coloured)
     
-    # ellipses, ridges, watershed_basins = enhanced_watershed_regions(img)
-    # cv2.imshow('Enhanced Watershed Segmentation', watershed_basins.astype(np.uint8))
+    ellipses, ridges, watershed_basins = enhanced_watershed_regions(img)
+    enhanced_watershed = cv2.applyColorMap((watershed_basins * round(256/np.max(watershed_basins)) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+    cv2.imshow('Enhanced Watershed Segmentation', enhanced_watershed)
 
-    # # Graph-based segmentation
-    # rag = graph.rag_mean_color(color_img, segments, mode='similarity', sigma=20)
-    # # Number of segments 
-    # num_segments = len(np.unique(segments))
-    # if num_segments < 5:
-    #     labels_ncut = graph.cut_normalized(segments, rag, num_cuts=num_segments//5, thresh=0.00000000001)
-    #     cv2.imshow('Graph-based Segmentation', labels_ncut.astype(np.uint8)*255)
-    #     cv2.imwrite('segmentation.png', labels_ncut.astype(np.uint8)*255)
-    # else:
-    #     #cv2.imwrite('segmentation.png', segments.astype(np.uint8)*255)
-    #     cv2.imwrite('segmentation.png', np.zeros_like(segments, dtype=np.uint8))
+    # Graph-based segmentation
+    rag = graph.rag_mean_color(color_img, segments, mode='similarity', sigma=20)
+    # Number of segments 
+    num_segments = len(np.unique(segments))
+    print(f"Number of segments (SLIC): {num_segments}")
+    if num_segments > 5:
+        labels_ncut = graph.cut_normalized(segments, rag, num_cuts=num_segments//5, thresh=0.00000000001)
+        labels_ncut_color = cv2.applyColorMap((labels_ncut * round(256/np.max(labels_ncut)) % 255).astype(np.uint8), cv2.COLORMAP_RAINBOW)
+        cv2.imshow('Graph-based Segmentation', labels_ncut.astype(np.uint8)*255)
+        cv2.imwrite('segmentation.png', labels_ncut.astype(np.uint8)*255)
+    else:
+        #cv2.imwrite('segmentation.png', segments.astype(np.uint8)*255)
+        cv2.imwrite('segmentation.png', np.zeros_like(segments, dtype=np.uint8))
     cv2.imwrite('segmentation.png', np.zeros_like(img, dtype=np.uint8))
     
     cv2.waitKey(0)

@@ -40,7 +40,6 @@ import cv2
 from skimage import io as skio
 from skimage import img_as_float32
 from skimage.util import img_as_ubyte
-import matplotlib.pyplot as plt
 
 
 # ==========================
@@ -394,29 +393,90 @@ def colorize_alignment_labels(labels: np.ndarray) -> np.ndarray:
     return out
 
 
-def visualize_quiver_overlay(img_bgr: np.ndarray, tx: np.ndarray, ty: np.ndarray, step: int = 12, alpha: float = 0.65) -> np.ndarray:
+def visualize_quiver_overlay(
+    img_bgr: np.ndarray,
+    tx: np.ndarray,
+    ty: np.ndarray,
+    step: int = 12,
+    alpha: float = 0.65,
+    color=(0, 255, 255),   # BGR
+    thickness: int = 1,
+    tip_length: float = 0.3,
+    max_len: float | None = None,  # pixels, optional clamp
+) -> np.ndarray:
+    """
+    Draw a quiver-style overlay using OpenCV only.
+
+    img_bgr: HxWx3 uint8
+    tx, ty: HxW float (or int) vectors (x and y components in pixels)
+    step: sampling stride
+    alpha: blending factor for overlay
+    """
+    if img_bgr.ndim != 3 or img_bgr.shape[2] != 3:
+        raise ValueError("img_bgr must be HxWx3 BGR image")
+    if tx.shape != ty.shape:
+        raise ValueError("tx and ty must have the same shape")
     h, w = tx.shape
-    Y, X = np.mgrid[0:h:step, 0:w:step]
-    U = tx[Y, X]
-    V = ty[Y, X]
+    if img_bgr.shape[0] != h or img_bgr.shape[1] != w:
+        raise ValueError("img_bgr spatial size must match tx/ty")
 
-    fig_dpi = math.gcd(w,h)
-    fig_w = w / fig_dpi
-    fig_h = h / fig_dpi
+    # Overlay to draw on
+    overlay = img_bgr.copy()
 
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=fig_dpi)
-    ax.imshow(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
-    ax.quiver(X, Y, U, V, angles='xy', scale_units='xy', width=0.002)
-    ax.axis('off')
-    fig.tight_layout(pad=0)
+    # Sample grid points
+    ys = np.arange(0, h, step, dtype=np.int32)
+    xs = np.arange(0, w, step, dtype=np.int32)
 
-    fig.canvas.draw()
-    overlay_rgb = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
-    overlay_rgb = overlay_rgb.reshape(int(fig_h * fig_dpi), int(fig_w * fig_dpi), 4)
-    plt.close(fig)
+    # Compute a reasonable scale so arrows are visible:
+    # use a robust magnitude statistic from sampled vectors.
+    U = tx[np.ix_(ys, xs)].astype(np.float32)
+    V = ty[np.ix_(ys, xs)].astype(np.float32)
+    mag = np.sqrt(U * U + V * V).ravel()
 
-    overlay_bgr = cv2.cvtColor(overlay_rgb, cv2.COLOR_RGBA2BGR)
-    out = cv2.addWeighted(img_bgr, 1 - alpha, overlay_bgr, alpha, 0.0)
+    # If the field is mostly zeros, just return blended copy (no arrows)
+    nonzero = mag[mag > 1e-6]
+    if nonzero.size == 0:
+        return img_bgr.copy()
+
+    # Target arrow length (in pixels) for a "typical" vector
+    # (tweakable, but works well for optical-flow-like fields)
+    typical = np.percentile(nonzero, 90)  # robust "large-ish" magnitude
+    target_len = 0.8 * step               # arrows roughly comparable to grid spacing
+    scale = target_len / (typical + 1e-6)
+
+    # Optional clamp for max arrow length
+    if max_len is None:
+        max_len = 2.0 * step
+
+    # Draw arrows
+    for y in ys:
+        for x in xs:
+            u = float(tx[y, x]) * scale
+            v = float(ty[y, x]) * scale
+
+            # Clamp length to avoid giant arrows
+            L = (u * u + v * v) ** 0.5
+            if L < 1e-3:
+                continue
+            if L > max_len:
+                s = max_len / L
+                u *= s
+                v *= s
+
+            x2 = int(round(x + u))
+            y2 = int(round(y + v))
+            cv2.arrowedLine(
+                overlay,
+                (x, y),
+                (x2, y2),
+                color,
+                thickness=thickness,
+                tipLength=tip_length,
+                line_type=cv2.LINE_AA,
+            )
+
+    # Blend overlay with original
+    out = cv2.addWeighted(img_bgr, 1.0 - alpha, overlay, alpha, 0.0)
     return out
 
 
